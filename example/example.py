@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     # export the graph, can be loaded by a viewer like gephi
     print("Exporting to gexf...")
-    excel.export_to_gexf(fname + ".gexf")
+    excel.export_to_gexf(f"{fname}.gexf")
 
     # As an alternative to using evaluate to put cells in the graph and
     # as a way to trim down the size of the file to just that needed.

@@ -47,9 +47,8 @@ def serial_number_wrapper(f):
     @functools.wraps(f)
     @excel_helper(number_params=0)
     def wrapped(date_serial_number):
-        if date_serial_number < 0:
-            return NUM_ERROR
-        return f(date_serial_number)
+        return NUM_ERROR if date_serial_number < 0 else f(date_serial_number)
+
     return wrapped
 
 
@@ -187,11 +186,7 @@ def yearfrac_basis_1(beg, end):
             denom = 365
     else:
         year_range = range(beg[0], end[0] + 1)
-        nb = 0
-
-        for y in year_range:
-            nb += 366 if is_leap_year(y) else 365
-
+        nb = sum(366 if is_leap_year(y) else 365 for y in year_range)
         denom = nb / len(year_range)
 
     return delta / denom
@@ -240,41 +235,50 @@ class DateTimeFormatter:
         'a/P': lambda d: 'a' if d._strftime('%p').lower() == 'am' else 'P',
     }
 
-    def FORMAT_DATETIME_CONVERSION_LOOKUP(FORMAT_DATETIME_CONVERSIONS):
+    def FORMAT_DATETIME_CONVERSION_LOOKUP(self):
         return {
-            'e': lambda code: FORMAT_DATETIME_CONVERSIONS['yyyy'],
-            'y': lambda code: FORMAT_DATETIME_CONVERSIONS[{
-                1: 'yy',
-                2: 'yy'
-            }.get(len(code), 'yyyy')],
-            'm': lambda code: FORMAT_DATETIME_CONVERSIONS[{
-                1: 'm',
-                2: 'mm',
-                3: 'mmm',
-                4: 'mmmm',
-                5: 'mmmmm',
-            }.get(len(code), 'mmmm')],
-            'd': lambda code: FORMAT_DATETIME_CONVERSIONS[{
-                1: 'd',
-                2: 'dd',
-                3: 'ddd',
-            }.get(len(code), 'dddd')],
-            'h': lambda code: FORMAT_DATETIME_CONVERSIONS[{
-                1: 'h',
-            }.get(len(code), 'hh')],
-            'H': lambda code: FORMAT_DATETIME_CONVERSIONS[{
-                1: 'H',
-            }.get(len(code), 'HH')],
-            'M': lambda code: FORMAT_DATETIME_CONVERSIONS[{
-                1: 'M',
-            }.get(len(code), 'MM')],
-            's': lambda code: FORMAT_DATETIME_CONVERSIONS[{
-                1: 's',
-            }.get(len(code), 'ss')],
-            '.': lambda code: FORMAT_DATETIME_CONVERSIONS[code],
-            'a': lambda code: FORMAT_DATETIME_CONVERSIONS[code],
-            'A': lambda code: FORMAT_DATETIME_CONVERSIONS[code],
-            '[': lambda code: FORMAT_DATETIME_CONVERSIONS[code],
+            'e': lambda code: self['yyyy'],
+            'y': lambda code: self[{1: 'yy', 2: 'yy'}.get(len(code), 'yyyy')],
+            'm': lambda code: self[
+                {
+                    1: 'm',
+                    2: 'mm',
+                    3: 'mmm',
+                    4: 'mmmm',
+                    5: 'mmmmm',
+                }.get(len(code), 'mmmm')
+            ],
+            'd': lambda code: self[
+                {
+                    1: 'd',
+                    2: 'dd',
+                    3: 'ddd',
+                }.get(len(code), 'dddd')
+            ],
+            'h': lambda code: self[
+                {
+                    1: 'h',
+                }.get(len(code), 'hh')
+            ],
+            'H': lambda code: self[
+                {
+                    1: 'H',
+                }.get(len(code), 'HH')
+            ],
+            'M': lambda code: self[
+                {
+                    1: 'M',
+                }.get(len(code), 'MM')
+            ],
+            's': lambda code: self[
+                {
+                    1: 's',
+                }.get(len(code), 'ss')
+            ],
+            '.': lambda code: self[code],
+            'a': lambda code: self[code],
+            'A': lambda code: self[code],
+            '[': lambda code: self[code],
         }
     FORMAT_DATETIME_CONVERSION_LOOKUP = FORMAT_DATETIME_CONVERSION_LOOKUP(
         FORMAT_DATETIME_CONVERSIONS)
@@ -414,9 +418,7 @@ def date(year, month_, day):
         assert (year, month_, day) == LEAP_1900_TUPLE
         result = 60.0
 
-    if result < 0:
-        return NUM_ERROR
-    return result
+    return NUM_ERROR if result < 0 else result
 
 
 # def datedif(value):
@@ -502,10 +504,7 @@ def months_inc(start_date, months, eomonth=False):
     if start_date < 0:
         return NUM_ERROR
     y, m, d = date_from_int(start_date)
-    if eomonth:
-        return date(y, m + months + 1, 1) - 1
-    else:
-        return date(y, m + months, d)
+    return date(y, m + months + 1, 1) - 1 if eomonth else date(y, m + months, d)
 
 
 @time_value_wrapper
@@ -676,23 +675,21 @@ def yearfrac(start_date, end_date, basis=0):
     y1, m1, d1 = date_from_int(start_date)
     y2, m2, d2 = date_from_int(end_date)
 
-    if basis == 0:  # US 30/360
-        result = yearfrac_basis_0((y1, m1, d1), (y2, m2, d2))
+    if basis == 0:
+        return yearfrac_basis_0((y1, m1, d1), (y2, m2, d2))
 
-    elif basis == 1:  # Actual/actual
-        result = yearfrac_basis_1((y1, m1, d1), (y2, m2, d2))
+    elif basis == 1:
+        return yearfrac_basis_1((y1, m1, d1), (y2, m2, d2))
 
-    elif basis == 2:  # Actual/360
-        result = (end_date - start_date) / 360
+    elif basis == 2:
+        return (end_date - start_date) / 360
 
-    elif basis == 3:  # Actual/365
-        result = (end_date - start_date) / 365
+    elif basis == 3:
+        return (end_date - start_date) / 365
 
-    else:  # basis == 4:  # Eurobond 30/360
+    else:
         d2 = min(d2, 30)
         d1 = min(d1, 30)
 
         day_count = 360 * (y2 - y1) + 30 * (m2 - m1) + (d2 - d1)
-        result = day_count / 360
-
-    return result
+        return day_count / 360

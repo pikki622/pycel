@@ -13,6 +13,7 @@
         Can be initialized with a instance of an OpenPyXl workbook
 """
 
+
 import abc
 import collections
 import os
@@ -25,7 +26,7 @@ from openpyxl.formula.translate import Translator
 from pycel.excelutil import AddressCell, AddressRange, flatten, is_address
 
 ARRAY_FORMULA_NAME = '=CSE_INDEX'
-ARRAY_FORMULA_FORMAT = '{}(%s,%s,%s,%s,%s)'.format(ARRAY_FORMULA_NAME)
+ARRAY_FORMULA_FORMAT = f'{ARRAY_FORMULA_NAME}(%s,%s,%s,%s,%s)'
 
 
 class ExcelWrapper:
@@ -97,28 +98,27 @@ class _OpxRange(ExcelWrapper.RangeData):
     def cell_to_formula(cls, cell):
         if cell.value is None:
             return ''
+        formula = str(cell.value)
+        if not formula.startswith('='):
+            return ''
+
+        elif formula.startswith('={') and formula[-1] == '}':
+            # This is not in a CSE Array Context
+            return f'=index({formula[1:]},1,1)'
+
+        elif formula.startswith(ARRAY_FORMULA_NAME):
+            # These are CSE Array formulas as encoded from sheet
+            params = formula[len(ARRAY_FORMULA_NAME) + 1:-1].rsplit(',', 4)
+            start_row = cell.row - int(params[1]) + 1
+            start_col_idx = cell.col_idx - int(params[2]) + 1
+            end_row = start_row + int(params[3]) - 1
+            end_col_idx = start_col_idx + int(params[4]) - 1
+            cse_range = AddressRange(
+                (start_col_idx, start_row, end_col_idx, end_row),
+                sheet=cell.parent.title)
+            return f'=index({cse_range.quoted_address},{params[1]},{params[2]})'
         else:
-            formula = str(cell.value)
-            if not formula.startswith('='):
-                return ''
-
-            elif formula.startswith('={') and formula[-1] == '}':
-                # This is not in a CSE Array Context
-                return f'=index({formula[1:]},1,1)'
-
-            elif formula.startswith(ARRAY_FORMULA_NAME):
-                # These are CSE Array formulas as encoded from sheet
-                params = formula[len(ARRAY_FORMULA_NAME) + 1:-1].rsplit(',', 4)
-                start_row = cell.row - int(params[1]) + 1
-                start_col_idx = cell.col_idx - int(params[2]) + 1
-                end_row = start_row + int(params[3]) - 1
-                end_col_idx = start_col_idx + int(params[4]) - 1
-                cse_range = AddressRange(
-                    (start_col_idx, start_row, end_col_idx, end_row),
-                    sheet=cell.parent.title)
-                return f'=index({cse_range.quoted_address},{params[1]},{params[2]})'
-            else:
-                return formula
+            return formula
 
     @property
     def resolve_range(self):

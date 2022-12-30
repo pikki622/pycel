@@ -26,15 +26,14 @@ def func_status_msg(name):
     known = name in all_excel_functions
     if known:
         msg = f'{name} is in the "{function_category[name]}" group'
-        version = function_version[name]
-        if version:
+        if version := function_version[name]:
             msg += f', and was introduced in {version}'
     else:
         msg = f'{name} is not a known Excel function'
     return known, msg
 
 
-def scrape_function_list():  # pragma: no cover
+def scrape_function_list():    # pragma: no cover
     """Development Code to scrape web for list of excel functions
         builds: function_info_data.py
     """
@@ -43,18 +42,16 @@ def scrape_function_list():  # pragma: no cover
     from urllib.parse import urlparse
 
     base_dir = os.path.dirname(__file__)
-    tmp_data_name = 'tmp_function_list_page'
-
     from_web = True
+    tmp_data_name = 'tmp_function_list_page'
     if from_web:
-        url = base_url + 'Excel-functions-alphabetical-' \
-                         'b3944572-255d-4efb-bb96-c6d90033e188'
+        url = f'{base_url}Excel-functions-alphabetical-b3944572-255d-4efb-bb96-c6d90033e188'
 
         page = requests.get(url)
         soup = BeautifulSoup(page.text, 'html.parser')
 
         # temporarily save page for further testing
-        tmp_data_py = os.path.join(base_dir, tmp_data_name + '.py')
+        tmp_data_py = os.path.join(base_dir, f'{tmp_data_name}.py')
         with open(tmp_data_py, 'wb') as f:
             f.write(f'page_html = """{page.text}"""')
 

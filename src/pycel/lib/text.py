@@ -62,13 +62,10 @@ class TextFormat:
     @classmethod
     def _find_am_pm(cls, element, format, stream):
         if element.code == 'a' and element.next_code in 'm/':
-            if element.next_code == 'm':
-                to_match = 'am/pm'
-            else:
-                to_match = 'a/p'
+            to_match = 'am/pm' if element.next_code == 'm' else 'a/p'
             matched = format[element.position:element.position + len(to_match)]
             if matched.lower() == to_match:
-                for i in range(len(to_match) - 1):
+                for _ in range(len(to_match) - 1):
                     next(stream)
                 return matched if to_match == 'a/p' else to_match
         return None
@@ -127,18 +124,11 @@ class TextFormat:
                 need_emit = True
                 if element.code == ',':
                     need_emit = False
-                    if (have_decimal or have_thousands or
-                            element.position == 0 or element.next_code is None or
-                            format[element.position - 1] not in self.FORMAT_PLACEHOLDER or
-                            format[element.position + 1] not in self.FORMAT_PLACEHOLDER):
-                        # just a regular comma, not 1000's indicator
-                        if element.position == 0 or (
-                                format[element.position - 1] not in self.FORMAT_PLACEHOLDER):
-                            tokens.append(self.Token(
-                                element.code, self.TokenType.STRING, element.position))
-                    else:
-                        have_thousands = True
-
+                    # just a regular comma, not 1000's indicator
+                    if element.position == 0 or (
+                            format[element.position - 1] not in self.FORMAT_PLACEHOLDER):
+                        tokens.append(self.Token(
+                            element.code, self.TokenType.STRING, element.position))
                 elif element.code == '.':
                     if have_decimal:
                         need_emit = False
@@ -242,17 +232,14 @@ class TextFormat:
         else:
             data = coerce_to_number(data)
 
-        # Process strings first
         if isinstance(data, str):
-            # '@' is not required in the fourth field to use the field
-            if string_replace_token_count or len(tokenized_formats) == 4:
-                tokens, token_types = tokenized_formats[-1][:2]
-                return ''.join(data if t.type == self.TokenType.REPLACE else t.token
-                               for t in tokens)
-            else:
+            if not string_replace_token_count and len(tokenized_formats) != 4:
                 # if no specific string formatter, then pass through
                 return data
 
+            tokens, token_types = tokenized_formats[-1][:2]
+            return ''.join(data if t.type == self.TokenType.REPLACE else t.token
+                           for t in tokens)
         if not tokenized_formats:
             return '-' if data < 0 else ''
 
@@ -299,11 +286,11 @@ class TextFormat:
 
     def _number_converter(self, number_value, tokenized: Tokenized):
         number_value *= 100 ** tokenized.percents
-        number_format = ''.join(
-            t.token for t in tokenized.tokens if t.type == self.TokenType.NUMBER)
         thousands = self.thousands_format if tokenized.thousands else ''
 
         if tokenized.decimal:
+            number_format = ''.join(
+                t.token for t in tokenized.tokens if t.type == self.TokenType.NUMBER)
             left_num_format, right_num_format = number_format.split('.', 1)
             decimals = len(right_num_format)
             left_side, right_side = f'{number_value:#{thousands}.{decimals}f}'.split('.')
@@ -334,7 +321,7 @@ class TextFormat:
             else:
                 result.extend(filler)
                 filler = []
-                for i in range(len(token.token)):
+                for _ in range(len(token.token)):
                     c = next(digits_iter, self.NUMBER_TOKEN_MATCH[token.token[0]])
                     if c is not None:
                         result.append(c)
@@ -384,8 +371,7 @@ def concatenate(*args):
     if tuple(flatten(args)) != args:
         return VALUE_ERROR
 
-    error = next((x for x in args if x in ERROR_CODES), None)
-    if error:
+    if error := next((x for x in args if x in ERROR_CODES), None):
         return error
 
     return ''.join(coerce_to_string(a) for a in args)
@@ -405,9 +391,7 @@ def concatenate(*args):
 def exact(text1, text2):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   exact-function-d3087698-fc15-4a15-9631-12575cf29926
-    if text1 == text2:
-        return True
-    return False
+    return text1 == text2
 
 
 @excel_helper(cse_params=(0, 1, 2), number_params=2, str_params=(0, 1))
@@ -415,10 +399,7 @@ def find(find_text, within_text, start_num=1):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   FIND-FINDB-functions-C7912941-AF2A-4BDF-A553-D0D89B0A0628
     found = within_text.find(find_text, start_num - 1)
-    if found == -1:
-        return VALUE_ERROR
-    else:
-        return found + 1
+    return VALUE_ERROR if found == -1 else found + 1
 
 
 # def findb(text):
@@ -440,10 +421,7 @@ def find(find_text, within_text, start_num=1):
 def left(text, num_chars=1):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   LEFT-LEFTB-functions-9203D2D2-7960-479B-84C6-1EA52B99640C
-    if num_chars < 0:
-        return VALUE_ERROR
-    else:
-        return str(text)[:int(num_chars)]
+    return VALUE_ERROR if num_chars < 0 else str(text)[:int(num_chars)]
 
 
 # def leftb(text):

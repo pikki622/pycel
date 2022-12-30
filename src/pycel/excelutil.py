@@ -35,7 +35,7 @@ REF_ERROR = "#REF!"
 R1C1_ROW_RE_STR = r"R(\[-?\d+\]|\d+)?"
 R1C1_COL_RE_STR = r"C(\[-?\d+\]|\d+)?"
 R1C1_COORD_RE_STR = f"(?P<row>{R1C1_ROW_RE_STR})?(?P<col>{R1C1_COL_RE_STR})?"
-R1C1_COORDINATE_RE = re.compile('^' + R1C1_COORD_RE_STR + '$', re.VERBOSE)
+R1C1_COORDINATE_RE = re.compile(f'^{R1C1_COORD_RE_STR}$', re.VERBOSE)
 
 R1C1_RANGE_EXPR = f"""
 (?P<min_row>{R1C1_ROW_RE_STR})?
@@ -44,7 +44,7 @@ R1C1_RANGE_EXPR = f"""
 (?P<max_col>{R1C1_COL_RE_STR})?)?
 """
 
-R1C1_RANGE_RE = re.compile('^' + R1C1_RANGE_EXPR + '$', re.VERBOSE)
+R1C1_RANGE_RE = re.compile(f'^{R1C1_RANGE_EXPR}$', re.VERBOSE)
 
 TABLE_REF_RE = re.compile(r"^(?P<table_name>[^[]+)\[(?P<table_selector>.*)\]$")
 
@@ -232,9 +232,12 @@ class AddressRange(collections.namedtuple(
                 raise ValueError(f"Mismatched sheets '{address}' and '{sheet}'")
 
         else:
-            assert (isinstance(address, tuple) and 4 == len(address) and
-                    None in address or address[0:2] != address[2:]), \
-                f"AddressRange expected a range '{address}'"
+            assert (
+                isinstance(address, tuple)
+                and len(address) == 4
+                and None in address
+                or address[:2] != address[2:]
+            ), f"AddressRange expected a range '{address}'"
 
             start_col, start_row, end_col, end_row = address
             start = AddressCell((start_col, start_row, start_col, start_row), sheet=sheet)
@@ -345,7 +348,7 @@ class AddressRange(collections.namedtuple(
 
         if isinstance(addr_tuple, AddressMultiAreaRange):
             return addr_tuple
-        elif None in addr_tuple or addr_tuple[0:2] != addr_tuple[2:]:
+        elif None in addr_tuple or addr_tuple[:2] != addr_tuple[2:]:
             return AddressRange(addr_tuple, sheet=sheetname)
         else:
             return AddressCell(addr_tuple, sheet=sheetname)
@@ -399,19 +402,18 @@ class AddressCell(collections.namedtuple(
                 raise ValueError(f"Mismatched sheets '{address}' and '{sheet}'")
 
         else:
-            assert (isinstance(address, tuple) and 4 == len(address) and
-                    None not in address or address[0:2] == address[2:]), \
-                f"AddressCell expected a cell '{address}'"
+            assert (
+                isinstance(address, tuple)
+                and len(address) == 4
+                and None not in address
+                or address[:2] == address[2:]
+            ), f"AddressCell expected a cell '{address}'"
 
             col_idx, row = (a or 0 for a in address[:2])
             column = (col_idx or '') and get_column_letter(col_idx)
             coordinate = f'{column}{row or ""}'
 
-        if sheet:
-            format_str = '{0}!{1}'
-        else:
-            format_str = '{1}'
-
+        format_str = '{0}!{1}' if sheet else '{1}'
         return super(AddressCell, cls).__new__(
             cls, format_str.format(sheet, coordinate),
             sheet, col_idx, row, coordinate)
@@ -583,13 +585,7 @@ def structured_reference_boundaries(address, cell=None):
     boundaries = openpyxl_range_boundaries(table.ref)
     assert None not in boundaries
 
-    selector = match.group('table_selector')
-
-    if not selector:
-        # all columns and the data rows
-        rows, start_col, end_col = None, None, None
-
-    else:
+    if selector := match.group('table_selector'):
         selector_match = TABLE_SELECTOR_RE.match(selector)
         if selector_match is None:
             raise PyCelException(f"Unknown Structured Reference Selector: {selector}")
@@ -635,39 +631,36 @@ def structured_reference_boundaries(address, cell=None):
             if len(end_col) == 0:
                 end_col = start_col
 
+    else:
+        # all columns and the data rows
+        rows, start_col, end_col = None, None, None
+
     if rows is None:
         # skip the headers and footers
-        min_row = boundaries[1] + (
-            table.headerRowCount if table.headerRowCount else 0)
-        max_row = boundaries[3] - (
-            table.totalsRowCount if table.totalsRowCount else 0)
+        min_row = boundaries[1] + (table.headerRowCount or 0)
+        max_row = boundaries[3] - (table.totalsRowCount or 0)
+
+    elif rows == '#All':
+        min_row, max_row = boundaries[1], boundaries[3]
+
+    elif rows == '#Data':
+        min_row = boundaries[1] + (table.headerRowCount or 0)
+        max_row = boundaries[3] - (table.totalsRowCount or 0)
+
+    elif rows == '#Headers':
+        min_row = boundaries[1]
+        max_row = boundaries[1] + (table.headerRowCount or 0) - 1
+
+    elif rows == '#Totals':
+        min_row = boundaries[3] - (table.totalsRowCount or 0) + 1
+        max_row = boundaries[3]
+
+    elif rows == '#This Row':
+        # ::TODO:: If not in a data row, return #VALUE! How to do this?
+        min_row = max_row = cell.address.row
 
     else:
-        if rows == '#All':
-            min_row, max_row = boundaries[1], boundaries[3]
-
-        elif rows == '#Data':
-            min_row = boundaries[1] + (
-                table.headerRowCount if table.headerRowCount else 0)
-            max_row = boundaries[3] - (
-                table.totalsRowCount if table.totalsRowCount else 0)
-
-        elif rows == '#Headers':
-            min_row = boundaries[1]
-            max_row = boundaries[1] + (
-                table.headerRowCount if table.headerRowCount else 0) - 1
-
-        elif rows == '#Totals':
-            min_row = boundaries[3] - (
-                table.totalsRowCount if table.totalsRowCount else 0) + 1
-            max_row = boundaries[3]
-
-        elif rows == '#This Row':
-            # ::TODO:: If not in a data row, return #VALUE! How to do this?
-            min_row = max_row = cell.address.row
-
-        else:
-            raise PyCelException(f"Unknown Structured Reference Rows: {rows}")
+        raise PyCelException(f"Unknown Structured Reference Rows: {rows}")
 
     if end_col is None:
         # all columns
@@ -708,19 +701,17 @@ def range_boundaries(address, cell=None, sheet=None):
     except ValueError:
         pass
 
-    # test for R1C1 style address
-    boundaries = r1c1_boundaries(address, cell=cell, sheet=sheet)
-    if boundaries:
+    if boundaries := r1c1_boundaries(address, cell=cell, sheet=sheet):
         return boundaries
 
-    # Try to see if the is a structured table reference
-    boundaries = structured_reference_boundaries(address, cell=cell)
-    if boundaries:
+    if boundaries := structured_reference_boundaries(address, cell=cell):
         return boundaries
 
-    # Try to see if this is a defined name
-    name_addr = cell and cell.excel and cell.excel.defined_names.get(address)
-    if name_addr:
+    if (
+        name_addr := cell
+        and cell.excel
+        and cell.excel.defined_names.get(address)
+    ):
         if len(name_addr) == 1:
             return openpyxl_range_boundaries(name_addr[0][0]), name_addr[0][1]
         else:
@@ -794,13 +785,8 @@ def r1c1_boundaries(address, cell=None, sheet=None):
             if len(r1_or_c1) > 1:
                 return int(r1_or_c1[1:])
 
-            else:
-                require_cell()
-                if r1_or_c1[0].upper() == 'R':
-                    return cell.row
-                else:
-                    return cell.col_idx
-
+            require_cell()
+            return cell.row if r1_or_c1[0].upper() == 'R' else cell.col_idx
         else:
             require_cell()
             if r1_or_c1[0].lower() == 'r':
@@ -828,16 +814,8 @@ def r1c1_boundaries(address, cell=None, sheet=None):
     if min_row is not None:
         min_row = min_row
 
-    if max_col is not None:
-        max_col = max_col
-    else:
-        max_col = min_col
-
-    if max_row is not None:
-        max_row = max_row
-    else:
-        max_row = min_row
-
+    max_col = max_col if max_col is not None else min_col
+    max_row = max_row if max_row is not None else min_row
     return (min_col, min_row, max_col, max_row), sheet
 
 
@@ -1025,12 +1003,11 @@ def handle_ifs(args, op_range=None):
 
 def build_wildcard_re(lookup_value):
     regex = QUESTION_MARK_RE.sub('.', STAR_RE.sub('.*', lookup_value))
-    if regex != lookup_value:
-        # this will be a regex match"""
-        compiled = re.compile(f'^{regex.lower()}$')
-        return lambda x: x is not None and compiled.match(x.lower()) is not None
-    else:
+    if regex == lookup_value:
         return None
+    # this will be a regex match"""
+    compiled = re.compile(f'^{regex.lower()}$')
+    return lambda x: x is not None and compiled.match(x.lower()) is not None
 
 
 def criteria_parser(criteria):
@@ -1075,11 +1052,8 @@ def criteria_parser(criteria):
             value = coerce_to_number(value)
 
             def check(x):
-                if isinstance(x, str) or x is None:
-                    # string always compare False unless '!='
-                    return op == operator.ne
-                else:
-                    return op(x, value)
+                return op == operator.ne if isinstance(x, str) or x is None else op(x, value)
+
         else:
             value = value.lower()
 
@@ -1238,7 +1212,7 @@ def build_operator_operand_fixup(capture_error_state):
                 left_op = ''
             elif isinstance(left_op, bool):
                 left_op = str(left_op).upper()
-            elif isinstance(left_op, float) or isinstance(left_op, int):
+            elif isinstance(left_op, (float, int)):
                 left_op = str(coerce_to_number(left_op))
             else:
                 left_op = str(left_op)
@@ -1247,7 +1221,7 @@ def build_operator_operand_fixup(capture_error_state):
                 right_op = ''
             elif isinstance(right_op, bool):
                 right_op = str(right_op).upper()
-            elif isinstance(right_op, float) or isinstance(right_op, int):
+            elif isinstance(right_op, (float, int)):
                 right_op = str(coerce_to_number(right_op))
             else:
                 right_op = str(right_op)
@@ -1256,11 +1230,13 @@ def build_operator_operand_fixup(capture_error_state):
             left_op = coerce_to_number(left_op, convert_all=True)
             right_op = coerce_to_number(right_op, convert_all=True)
 
-            if not (is_number(left_op) and is_number(right_op) or
-                    is_address(left_op) and is_address(right_op)):
-                if op != 'USub':
-                    capture_error_state(True, f'Values: {left_op} {op} {right_op}')
-                    return VALUE_ERROR
+            if (
+                (not is_number(left_op) or not is_number(right_op))
+                and (not is_address(left_op) or not is_address(right_op))
+                and op != 'USub'
+            ):
+                capture_error_state(True, f'Values: {left_op} {op} {right_op}')
+                return VALUE_ERROR
 
         try:
             if op == 'USub':

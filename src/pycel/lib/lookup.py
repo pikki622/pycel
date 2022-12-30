@@ -163,15 +163,12 @@ def choose(index, *args):
 
 @excel_helper(ref_params=0)
 def column(ref):
-    # Excel reference: https://support.microsoft.com/en-us/office/
-    #   COLUMN-function-44E8C754-711C-4DF3-9DA4-47A55042554B
-    if ref.is_range:
-        if ref.end.col_idx == 0:
-            return range(1, MAX_COL + 1)
-        else:
-            return (tuple(range(ref.start.col_idx, ref.end.col_idx + 1)), )
-    else:
+    if not ref.is_range:
         return ref.col_idx
+    if ref.end.col_idx == 0:
+        return range(1, MAX_COL + 1)
+    else:
+        return (tuple(range(ref.start.col_idx, ref.end.col_idx + 1)), )
 
 
 # def columns(value):
@@ -237,25 +234,19 @@ def index(array, row_num, col_num=None):
     #   index-function-a5dcf0dd-996d-40a4-a822-b56b061328bd
 
     if not list_like(array):
-        if array in ERROR_CODES:
-            return array
-        else:
-            return VALUE_ERROR
+        return array if array in ERROR_CODES else VALUE_ERROR
     if not list_like(array[0]):
         return VALUE_ERROR
 
     if is_address(array[0][0]):
-        assert len({a for a in flatten(array)}) == 1
+        assert len(set(flatten(array))) == 1
         _C_ = index.excel_func_meta['name_space']['_C_']
         ref_addr = array[0][0].address_at_offset
     else:
         ref_addr = None
 
     def array_data(row, col):
-        if ref_addr:
-            return _C_(ref_addr(row, col).address)
-        else:
-            return array[row][col]
+        return _C_(ref_addr(row, col).address) if ref_addr else array[row][col]
 
     try:
         # rectangular array
@@ -354,21 +345,19 @@ def lookup(lookup_value, lookup_array, result_range=None):
         rr_height = len(result_range)
         rr_width = len(result_range[0])
 
-        if rr_width < rr_height:
-            if rr_width != 1:
-                return NA_ERROR
+        if (
+            rr_width < rr_height
+            and rr_width != 1
+            or rr_width >= rr_height
+            and rr_height != 1
+        ):
+            return NA_ERROR
+        elif rr_width < rr_height:
             result = tuple(i[0] for i in result_range)
         else:
-            if rr_height != 1:
-                return NA_ERROR
             result = result_range[0]
 
-    if isinstance(match_idx, int):
-        return result[match_idx - 1]
-
-    else:
-        # error string
-        return match_idx
+    return result[match_idx - 1] if isinstance(match_idx, int) else match_idx
 
 
 @excel_helper(cse_params=0, number_params=2, err_str_params=(0, 2))
@@ -410,25 +399,21 @@ def offset(reference, row_inc, col_inc, height=None, width=None):
                            sheet=base_addr.sheet)
     if height == width == 1:
         return top_left
-    else:
-        bottom_right = AddressCell((end_col, end_row, end_col, end_row),
-                                   sheet=base_addr.sheet)
+    bottom_right = AddressCell((end_col, end_row, end_col, end_row),
+                               sheet=base_addr.sheet)
 
-        return AddressRange(f'{top_left.coordinate}:{bottom_right.coordinate}',
-                            sheet=top_left.sheet)
+    return AddressRange(f'{top_left.coordinate}:{bottom_right.coordinate}',
+                        sheet=top_left.sheet)
 
 
 @excel_helper(ref_params=0)
 def row(ref):
-    # Excel reference: https://support.microsoft.com/en-us/office/
-    #   row-function-3a63b74a-c4d0-4093-b49a-e76eb49a6d8d
-    if ref.is_range:
-        if ref.end.row == 0:
-            return range(1, MAX_ROW + 1)
-        else:
-            return tuple((c, ) for c in range(ref.start.row, ref.end.row + 1))
-    else:
+    if not ref.is_range:
         return ref.row
+    if ref.end.row == 0:
+        return range(1, MAX_ROW + 1)
+    else:
+        return tuple((c, ) for c in range(ref.start.row, ref.end.row + 1))
 
 
 # def rows(value):

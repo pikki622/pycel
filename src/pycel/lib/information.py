@@ -34,14 +34,8 @@ def cell(info_type, ref):
 
     if not is_address(ref):
         return ref
-    else:
-        if ref.is_range:
-            current_cell = ref.start
-        else:
-            current_cell = ref
-
-        _C_ = cell.excel_func_meta['name_space']['_C_']
-        return _C_(current_cell.address)
+    current_cell = ref.start if ref.is_range else ref
+    return cell.excel_func_meta['name_space']['_C_'](current_cell.address)
 
 
 # def error.type(value):
@@ -152,9 +146,7 @@ def n(value):
     #   n-function-a624cad1-3635-4208-b54a-29733d1278c9
     if isinstance(value, str):
         return 0
-    if isinstance(value, bool):
-        return int(value)
-    return value
+    return int(value) if isinstance(value, bool) else value
 
 
 def na():

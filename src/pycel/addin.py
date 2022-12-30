@@ -31,19 +31,18 @@ def on_open_logfile():
     if config.has_option("LOG", "path") and config.has_option("LOG", "file"):
         path = os.path.join(
             config.get("LOG", "path"), config.get("LOG", "file"))
-        webbrowser.open("file://%s" % path)
+        webbrowser.open(f"file://{path}")
 
 
 def xl_app():
     xl_window = get_active_object()
-    xl_app = win32com.client.Dispatch(xl_window).Application
-    return xl_app
+    return win32com.client.Dispatch(xl_window).Application
 
 
 @xl_menu("Compile selection", menu="Pycel")
 def compile_selection_menu():
     curfile = xl_app().ActiveWorkbook.FullName
-    newfile = curfile + ".pickle"
+    newfile = f"{curfile}.pickle"
     selection = xl_app().Selection
     seed = selection.Address
 
@@ -53,15 +52,20 @@ def compile_selection_menu():
         return
 
     res = win32api.MessageBox(
-        0, "Going to compile %s to %s starting from %s" % (
-            curfile, newfile, seed), "Pycel", 1)
+        0,
+        f"Going to compile {curfile} to {newfile} starting from {seed}",
+        "Pycel",
+        1,
+    )
     if res == 2:
         return
 
     sp = do_compilation(curfile, seed)
     win32api.MessageBox(
-        0, "Compilation done, graph has %s nodes and %s edges" % (
-            len(sp.dep_graph.nodes()), len(sp.dep_graph.edges())), "Pycel")
+        0,
+        f"Compilation done, graph has {len(sp.dep_graph.nodes())} nodes and {len(sp.dep_graph.edges())} edges",
+        "Pycel",
+    )
 
 
 def do_compilation(fname, seed, sheet=None):

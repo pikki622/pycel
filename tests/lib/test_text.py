@@ -76,23 +76,7 @@ def test_exact(text1, text2, expected):
     assert exact(text1, text2) == expected
 
 
-@pytest.mark.parametrize(
-    'to_find, find_in, expected', (
-        (2, 2.5, 1),
-        ('.', 2.5, 2),
-        (5, 2.5, 3),
-        ('2', 2.5, 1),
-        ('.', 2.5, 2),
-        ('5', 2.5, 3),
-        ('2', '2.5', 1),
-        ('.', '2.5', 2),
-        ('T', True, 1),
-        ('U', True, 3),
-        ('u', True, VALUE_ERROR),
-        (DIV0, 'x' + DIV0, DIV0),
-        ('V', DIV0, DIV0),
-    )
-)
+@pytest.mark.parametrize('to_find, find_in, expected', ((2, 2.5, 1), ('.', 2.5, 2), (5, 2.5, 3), ('2', 2.5, 1), ('.', 2.5, 2), ('5', 2.5, 3), ('2', '2.5', 1), ('.', '2.5', 2), ('T', True, 1), ('U', True, 3), ('u', True, VALUE_ERROR), (DIV0, f'x{DIV0}', DIV0), ('V', DIV0, DIV0)))
 def test_find(to_find, find_in, expected):
     assert find(to_find, find_in) == expected
 

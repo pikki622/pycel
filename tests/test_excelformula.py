@@ -450,8 +450,10 @@ test_names = (
 
 test_data = []
 for test_name in test_names:
-    for i, test in enumerate(globals()[test_name]):
-        test_data.append((f'{test_name}_{i + 1}', test[0], test[1], test[2]))
+    test_data.extend(
+        (f'{test_name}_{i + 1}', test[0], test[1], test[2])
+        for i, test in enumerate(globals()[test_name])
+    )
 
 
 def dump_all_test_cases():

@@ -75,8 +75,12 @@ class Tokenizer(tokenizer.Tokenizer):
 
                     # split the address on the ':'
                     addr, func = token.value.rsplit(':', maxsplit=1)
-                    tokens.append(Token(addr, Token.OPERAND, Token.RANGE))
-                    tokens.append(Token(':', Token.OP_IN, ''))
+                    tokens.extend(
+                        (
+                            Token(addr, Token.OPERAND, Token.RANGE),
+                            Token(':', Token.OP_IN, ''),
+                        )
+                    )
                     token.value = func
                     tokens.append(token)
 
@@ -88,7 +92,6 @@ class Tokenizer(tokenizer.Tokenizer):
                     token.value = token.value[1:]
                     tokens.append(token)
 
-                # drop unary +
                 elif not token.matches(type_=Token.OP_PRE, value='+'):
                     tokens.append(token)
 
@@ -248,8 +251,7 @@ class ASTNode:
     @property
     def descendants(self):
         if self._descendants is None:
-            self._descendants = list(
-                n for n in self.ast.nodes(self) if n[0] != self)
+            self._descendants = [n for n in self.ast.nodes(self) if n[0] != self]
         return self._descendants
 
     @property
@@ -301,12 +303,12 @@ class OperatorNode(ASTNode):
                           )
         else:
             if op != ',':
-                op = ' ' + op
+                op = f' {op}'
             ss = f'{args[0].emit}{op} {args[1].emit}'
 
         # avoid needless parentheses
         if parent and not isinstance(parent, FunctionNode):
-            ss = "(" + ss + ")"
+            ss = f"({ss})"
 
         return ss
 
@@ -367,9 +369,8 @@ class RangeNode(OperandNode):
 
         if isinstance(address, AddressMultiAreaRange):
             return ', '.join(self._emit(value=str(addr)) for addr in address)
-        else:
-            template = '_R_("{}")' if address.is_range else '_C_("{}")'
-            return template.format(address)
+        template = '_R_("{}")' if address.is_range else '_C_("{}")'
+        return template.format(address)
 
 
 class FunctionNode(ASTNode):
@@ -480,7 +481,7 @@ class FunctionNode(ASTNode):
         return f'offset({self._build_reference}{to_emit})'
 
     def func_indirect(self):
-        to_emit = list(c.emit for c in self.children)
+        to_emit = [c.emit for c in self.children]
         if len(to_emit) == 1:
             to_emit.append('True')
         to_emit.append(f'"{self.cell.sheet}"')
@@ -589,16 +590,18 @@ class ExcelFormula:
     def needed_addresses(self):
         """Return the addresses and address ranges this formula needs"""
         if self._needed_addresses is None:
-            # get all the cells/ranges this formula refers to, and remove dupes
             if self.python_code:
                 code = iter((self.python_code.encode(),))
                 tokens = tuple(tk.tokenize(lambda: next(code)))
-                addrs = []
-                for i, t in enumerate(tokens):
-                    if t.type == 1 and t.string in ADDR_FUNCS_NAMES and (
-                            tokens[i + 1].string == '(' and
-                            tokens[i + 3].string == ')'):
-                        addrs.append(AddressRange(tokens[i + 2].string[1:-1]))
+                addrs = [
+                    AddressRange(tokens[i + 2].string[1:-1])
+                    for i, t in enumerate(tokens)
+                    if t.type == 1
+                    and t.string in ADDR_FUNCS_NAMES
+                    and (
+                        tokens[i + 1].string == '(' and tokens[i + 3].string == ')'
+                    )
+                ]
                 self._needed_addresses = uniqueify(addrs)
             else:
                 self._needed_addresses = ()
@@ -609,30 +612,27 @@ class ExcelFormula:
     def python_code(self):
         """Use the ast to generate python code"""
         if self._python_code is None:
-            if self.ast is None:
-                self._python_code = ''
-            else:
-                self._python_code = self.ast.emit
+            self._python_code = '' if self.ast is None else self.ast.emit
         return self._python_code
 
     @property
     def compiled_python(self):
         """ Using the Python code, generate compiled python code"""
         if self._compiled_python is None and self.python_code:
-            if self._marshalled_python is not None:
-                try:
-                    marshalled, names = self._marshalled_python
-                    self._compiled_python = marshal.loads(marshalled), names
-                except Exception:
-                    self._marshalled_python = None
-                    return self.compiled_python
-            else:
+            if self._marshalled_python is None:
                 try:
                     self._compile_python_ast()
                 except Exception as exc:
                     raise FormulaParserError(
                         f"Failed to compile expression {self.python_code}: {exc}")
 
+            else:
+                try:
+                    marshalled, names = self._marshalled_python
+                    self._compiled_python = marshal.loads(marshalled), names
+                except Exception:
+                    self._marshalled_python = None
+                    return self.compiled_python
         return self._compiled_python
 
     def _ast_node(self, token):
@@ -664,9 +664,13 @@ class ExcelFormula:
                 token = Token(')', Token.PAREN, Token.CLOSE)
 
             elif token.matches(Token.ARRAY, Token.OPEN):
-                tokens.append(token)
-                tokens.append(Token('(', Token.PAREN, Token.OPEN))
-                tokens.append(Token('', Token.ARRAYROW, Token.OPEN))
+                tokens.extend(
+                    (
+                        token,
+                        Token('(', Token.PAREN, Token.OPEN),
+                        Token('', Token.ARRAYROW, Token.OPEN),
+                    )
+                )
                 token = Token('(', Token.PAREN, Token.OPEN)
 
             elif token.matches(Token.ARRAY, Token.CLOSE):
@@ -674,14 +678,18 @@ class ExcelFormula:
                 token = Token(')', Token.PAREN, Token.CLOSE)
 
             elif token.matches(Token.SEP, Token.ROW):
-                tokens.append(Token(')', Token.PAREN, Token.CLOSE))
-                tokens.append(Token(',', Token.SEP, Token.ARG))
-                tokens.append(Token('', Token.ARRAYROW, Token.OPEN))
+                tokens.extend(
+                    (
+                        Token(')', Token.PAREN, Token.CLOSE),
+                        Token(',', Token.SEP, Token.ARG),
+                        Token('', Token.ARRAYROW, Token.OPEN),
+                    )
+                )
                 token = Token('(', Token.PAREN, Token.OPEN)
 
             elif token.matches(Token.SEP, Token.ARG):
                 if next_token.matches(Token.SEP, Token.ARG) or \
-                        next_token.matches(Token.FUNC, Token.CLOSE):
+                            next_token.matches(Token.FUNC, Token.CLOSE):
                     tokens.append(token)
                     token = Token('', Token.OPERAND, Token.EMPTY)
 

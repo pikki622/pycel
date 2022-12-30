@@ -50,11 +50,10 @@ def _numerics(*args, keep_bools=False, to_number=lambda x: x):
     if error is not None:
         # return the first error in the list
         return error
-    else:
-        args = (
-            to_number(a) for a in args if keep_bools or not isinstance(a, bool)
-        )
-        return tuple(x for x in args if isinstance(x, (int, float)))
+    args = (
+        to_number(a) for a in args if keep_bools or not isinstance(a, bool)
+    )
+    return tuple(x for x in args if isinstance(x, (int, float)))
 
 
 @excel_math_func
@@ -221,10 +220,7 @@ def log(number, base=10):
 def mod(number, divisor):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   MOD-function-9b6cd169-b6ee-406a-a97b-edf2a9dc24f3
-    if divisor == 0:
-        return DIV0
-
-    return number % divisor
+    return DIV0 if divisor == 0 else number % divisor
 
 
 @excel_helper(cse_params=None, err_str_params=-1, number_params=0)
@@ -261,14 +257,10 @@ def power(number, power):
 
 @excel_math_func
 def pv(rate, nper, pmt, fv=0, type_=0):
-    #  Excel reference: https://support.microsoft.com/en-us/office/
-    #   pv-function-23879d31-0e02-4321-be01-da16e8168cbd
-
-    if rate != 0:
-        val = pmt * (1 + rate * type_) * ((1 + rate) ** nper - 1) / rate
-        return 1 / (1 + rate) ** nper * (-fv - val)
-    else:
+    if rate == 0:
         return -fv - pmt * nper
+    val = pmt * (1 + rate * type_) * ((1 + rate) ** nper - 1) / rate
+    return 1 / (1 + rate) ** nper * (-fv - val)
 
 
 @excel_math_func
@@ -318,11 +310,7 @@ def sign(value):
 
 def sum_(*args):
     data = _numerics(*args)
-    if isinstance(data, str):
-        return data
-
-    # if no non numeric cells, return zero (is what excel does)
-    return sum(data)
+    return data if isinstance(data, str) else sum(data)
 
 
 def sumif(rng, criteria, sum_range=None):
@@ -361,12 +349,7 @@ def sumifs(sum_range, *args):
 
 
 def sumproduct(*args):
-    # Excel reference: https://support.microsoft.com/en-us/office/
-    #   SUMPRODUCT-function-16753E75-9F68-4874-94AC-4D2145A2FD2E
-
-    # find any errors
-    error = next((i for i in flatten(args) if i in ERROR_CODES), None)
-    if error:
+    if error := next((i for i in flatten(args) if i in ERROR_CODES), None):
         return error
 
     # verify array sizes match

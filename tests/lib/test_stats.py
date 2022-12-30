@@ -173,10 +173,7 @@ class TestCountIfs:
 def test_forecast_intercept_slope_trend(
         Y, X, expected_slope, expected_intercept, expected_fit, input_x):
     def approx_with_error(result):
-        if result in ERROR_CODES:
-            return result
-        else:
-            return pytest.approx(result)
+        return result if result in ERROR_CODES else pytest.approx(result)
 
     if expected_fit is not None:
         expected = NA_ERROR if isinstance(input_x, tuple) else expected_fit

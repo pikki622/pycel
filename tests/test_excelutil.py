@@ -267,12 +267,12 @@ def test_address_sort_keys():
 
 
 def test_address_range_columns():
-    columns = list(list(x) for x in AddressRange('sh!A1:C3').cols)
+    columns = [list(x) for x in AddressRange('sh!A1:C3').cols]
     assert 3 == len(columns)
     assert 3 == len(columns[0])
 
-    assert all('A' == addr.column for addr in columns[0])
-    assert all('C' == addr.column for addr in columns[-1])
+    assert all(addr.column == 'A' for addr in columns[0])
+    assert all(addr.column == 'C' for addr in columns[-1])
 
 
 def test_address_pickle(tmpdir):
@@ -495,15 +495,15 @@ def test_structured_table_reference_boundaries(ref, expected):
             self.tableColumns = tuple(
                 Column(name) for name in 'col1 col2 col3 col4 col5'.split())
 
+
+
     class Excel:
         def __init__(self, table):
             self.a_table = table
 
         def table(self, name):
-            if name == 'a_table':
-                return self.a_table, None
-            else:
-                return None, None
+            return (self.a_table, None) if name == 'a_table' else (None, None)
+
 
     class Cell:
         def __init__(self, table, address):
@@ -877,17 +877,7 @@ def test_find_corresponding_index():
         find_corresponding_index((list('ABB'), ), None)
 
 
-@pytest.mark.parametrize(
-    'value, expected', (
-        ('xyzzy', False),
-        (AddressRange('A1:B2'), False),
-        (AddressCell('A1'), False),
-        ([1, 2], True),
-        ((1, 2), True),
-        ({1: 2, 3: 4}, True),
-        ((a for a in range(2)), True),
-    )
-)
+@pytest.mark.parametrize('value, expected', (('xyzzy', False), (AddressRange('A1:B2'), False), (AddressCell('A1'), False), ([1, 2], True), ((1, 2), True), ({1: 2, 3: 4}, True), (iter(range(2)), True)))
 def test_list_like(value, expected):
     assert list_like(value) == expected
     if expected:

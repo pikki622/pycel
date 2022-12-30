@@ -49,9 +49,7 @@ def _slope_intercept(Y, X):
 
     if len(coefs) != 2:
         return NA_ERROR
-    if not full_rank:
-        return DIV0
-    return coefs
+    return coefs if full_rank else DIV0
 
 
 # def avedev(value):
@@ -107,9 +105,7 @@ def averageifs(average_range, *args):
         return coords
 
     data = _numerics((average_range[r][c] for r, c in coords), keep_bools=True)
-    if len(data) == 0:
-        return DIV0
-    return sum(data) / len(data)
+    return DIV0 if len(data) == 0 else sum(data) / len(data)
 
 
 # def beta.dist(value):
@@ -181,8 +177,10 @@ def count(*args):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   COUNT-function-a59cd7fc-b623-4d93-87a4-d23bf411294c
 
-    return sum(1 for x in flatten(args)
-               if isinstance(x, (int, float)) and not isinstance(x, bool))
+    return sum(
+        isinstance(x, (int, float)) and not isinstance(x, bool)
+        for x in flatten(args)
+    )
 
 
 # def counta(value):
@@ -210,10 +208,7 @@ def countifs(*args):
     coords = handle_ifs(args)
 
     # A returned string is an error code
-    if isinstance(coords, str):
-        return coords
-
-    return len(coords)
+    return coords if isinstance(coords, str) else len(coords)
 
 
 # def covariance.p(value):
@@ -271,9 +266,7 @@ def forecast(x, Y, X):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   forecasting-functions-reference-897a2fe9-6595-4680-a0b0-93e0308d5f6e
     coefs = _slope_intercept(Y, X)
-    if coefs in ERROR_CODES:
-        return coefs
-    return coefs[0] * x + coefs[1]
+    return coefs if coefs in ERROR_CODES else coefs[0] * x + coefs[1]
 
 
 # def forecast.ets(value):
@@ -366,9 +359,7 @@ def intercept(Y, X):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   intercept-function-2a9b74e2-9d47-4772-b663-3bca70bf63ef
     coefs = _slope_intercept(Y, X)
-    if coefs in ERROR_CODES:
-        return coefs
-    return coefs[1]
+    return coefs if coefs in ERROR_CODES else coefs[1]
 
 
 # def kurt(value):
@@ -424,13 +415,7 @@ def linest_helper(Y, X=None, const=True, stats=False):
         if data.dtype.kind not in _NP_NUMERIC_KINDS:
             raise ValueError
 
-    if const:
-        # add a constant column
-        A = np.hstack((np.ones((len(Y), 1)), X))
-    else:
-        # force the intercept to zero if no const desired
-        A = X
-
+    A = np.hstack((np.ones((len(Y), 1)), X)) if const else X
     # perform the fit
     coefs, residuals, rank, sing_vals = np.linalg.lstsq(A, Y, rcond=None)
     full_rank = (rank == len(coefs))
@@ -438,49 +423,48 @@ def linest_helper(Y, X=None, const=True, stats=False):
     if not full_rank:
         result_coefs = (0,) * (len(result_coefs) - 1) + (np.sum(Y) / len(Y),)
 
-    if stats:
-        # Compute some extended stats as Excel does
-        Y_predicted = A @ coefs
-        if const:
-            sum_sq_regression = np.sum((Y_predicted - np.sum(Y) / len(Y)) ** 2)
-            sum_sq_total = (len(Y) - 1) * np.var(Y, ddof=1)
-        else:
-            # https://stats.stackexchange.com/a/26205/154402
-            sum_sq_regression = np.sum(Y_predicted ** 2)
-            sum_sq_total = np.sum(Y ** 2)
-        sum_sq_resid = np.sum((Y - Y_predicted) ** 2)
-        r2_score = 1 - (sum_sq_resid / sum_sq_total)
-
-        # standard error stats
-        try:
-            stderr_y_2 = (1 / (len(Y) - len(coefs))) * (Y_predicted - Y) @ (Y_predicted - Y).T
-            stderr_y = np.sqrt(stderr_y_2)
-            std_err = tuple(reversed(np.sqrt((stderr_y_2 * np.linalg.inv(A.T @ A)).diagonal())))
-        except (ZeroDivisionError, np.linalg.LinAlgError):
-            stderr_y = 0
-            std_err = (0,) * len(result_coefs)
-            r2_score = 1
-            sum_sq_regression = result_coefs[-1]
-            sum_sq_resid = 0
-
-        if len(std_err) < len(result_coefs):
-            std_err += (NA_ERROR,) * (len(result_coefs) - len(std_err))
-
-        # F and dof stats
-        dof = len(Y) - len(coefs)
-        denom = (len(result_coefs) - 1) * (1 - r2_score)
-        f_score = NUM_ERROR if denom == 0 else r2_score * dof / denom
-
-        na_filler = (NA_ERROR,) * max(0, len(result_coefs) - 2)
-        return (
-            result_coefs,
-            std_err,
-            (r2_score, stderr_y, *na_filler),
-            (f_score, dof, *na_filler),
-            (sum_sq_regression, sum_sq_resid, *na_filler),
-        ), full_rank
-    else:
+    if not stats:
         return result_coefs, full_rank
+    # Compute some extended stats as Excel does
+    Y_predicted = A @ coefs
+    if const:
+        sum_sq_regression = np.sum((Y_predicted - np.sum(Y) / len(Y)) ** 2)
+        sum_sq_total = (len(Y) - 1) * np.var(Y, ddof=1)
+    else:
+        # https://stats.stackexchange.com/a/26205/154402
+        sum_sq_regression = np.sum(Y_predicted ** 2)
+        sum_sq_total = np.sum(Y ** 2)
+    sum_sq_resid = np.sum((Y - Y_predicted) ** 2)
+    r2_score = 1 - (sum_sq_resid / sum_sq_total)
+
+    # standard error stats
+    try:
+        stderr_y_2 = (1 / (len(Y) - len(coefs))) * (Y_predicted - Y) @ (Y_predicted - Y).T
+        stderr_y = np.sqrt(stderr_y_2)
+        std_err = tuple(reversed(np.sqrt((stderr_y_2 * np.linalg.inv(A.T @ A)).diagonal())))
+    except (ZeroDivisionError, np.linalg.LinAlgError):
+        stderr_y = 0
+        std_err = (0,) * len(result_coefs)
+        r2_score = 1
+        sum_sq_regression = result_coefs[-1]
+        sum_sq_resid = 0
+
+    if len(std_err) < len(result_coefs):
+        std_err += (NA_ERROR,) * (len(result_coefs) - len(std_err))
+
+    # F and dof stats
+    dof = len(Y) - len(coefs)
+    denom = (len(result_coefs) - 1) * (1 - r2_score)
+    f_score = NUM_ERROR if denom == 0 else r2_score * dof / denom
+
+    na_filler = (NA_ERROR,) * max(0, len(result_coefs) - 2)
+    return (
+        result_coefs,
+        std_err,
+        (r2_score, stderr_y, *na_filler),
+        (f_score, dof, *na_filler),
+        (sum_sq_regression, sum_sq_resid, *na_filler),
+    ), full_rank
 
 
 def linest(Y, X=None, const=None, stats=None):
@@ -497,10 +481,7 @@ def linest(Y, X=None, const=None, stats=None):
     except ValueError:
         return VALUE_ERROR
 
-    if stats:
-        return coefs
-    else:
-        return (coefs,)
+    return coefs if stats else (coefs, )
 
 
 # def logest(value):
@@ -732,9 +713,7 @@ def slope(Y, X):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   slope-function-11fb8f97-3117-4813-98aa-61d7e01276b9
     coefs = _slope_intercept(Y, X)
-    if coefs in ERROR_CODES:
-        return coefs
-    return coefs[0]
+    return coefs if coefs in ERROR_CODES else coefs[0]
 
 
 @excel_helper()

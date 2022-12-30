@@ -80,7 +80,7 @@ def _dec2base(value, places=None, base=16):
         places = int(places)
         if places < len(value):
             return NUM_ERROR
-    return value.zfill(int(places))
+    return value.zfill(places)
 
 
 def _base2base(value, places=None, base_in=16, base_out=16):
@@ -131,9 +131,7 @@ bin2oct = functools.partial(_base2base, base_in=2, base_out=8)
 def bitand(op_x, op_y):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   bitand-function-8a2be3d7-91c3-4b48-9517-64548008563a
-    if op_x < 0 or op_y < 0:
-        return NUM_ERROR
-    return op_x & op_y
+    return NUM_ERROR if op_x < 0 or op_y < 0 else op_x & op_y
 
 
 @excel_math_func
@@ -142,18 +140,14 @@ def bitlshift(number, pos):
     #   bitlshift-function-c55bb27e-cacd-4c7c-b258-d80861a03c9c
     if number < 0 or abs(pos) > 53 or number >= 2**48:
         return NUM_ERROR
-    if pos < 0:
-        return bitrshift(number, abs(pos))
-    return number << pos
+    return bitrshift(number, abs(pos)) if pos < 0 else number << pos
 
 
 @excel_math_func
 def bitor(op_x, op_y):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   bitor-function-f6ead5c8-5b98-4c9e-9053-8ad5234919b2
-    if op_x < 0 or op_y < 0:
-        return NUM_ERROR
-    return op_x | op_y
+    return NUM_ERROR if op_x < 0 or op_y < 0 else op_x | op_y
 
 
 @excel_math_func
@@ -162,18 +156,14 @@ def bitrshift(number, pos):
     #   bitrshift-function-274d6996-f42c-4743-abdb-4ff95351222c
     if number < 0 or abs(pos) > 53 or number >= 2 ** 48:
         return NUM_ERROR
-    if pos < 0:
-        return bitlshift(number, abs(pos))
-    return number >> pos
+    return bitlshift(number, abs(pos)) if pos < 0 else number >> pos
 
 
 @excel_math_func
 def bitxor(op_x, op_y):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   bitxor-function-c81306a1-03f9-4e89-85ac-b86c3cba10e4
-    if op_x < 0 or op_y < 0:
-        return NUM_ERROR
-    return op_x ^ op_y
+    return NUM_ERROR if op_x < 0 or op_y < 0 else op_x ^ op_y
 
 
 # def complex(value):

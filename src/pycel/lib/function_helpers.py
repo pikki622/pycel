@@ -247,10 +247,7 @@ def strs_wrapper(f, param_indices=None):
                          for i, a in enumerate(args))
         error = next((a for i, a in enumerate(new_args)
                       if i in param_indices and a in ERROR_CODES), None)
-        if error:
-            return error
-
-        return f(*new_args)
+        return error or f(*new_args)
 
     return wrapper
 

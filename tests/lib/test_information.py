@@ -60,11 +60,10 @@ def test_cell(reference, info_type, expected):
     assert isinstance(reference, str)
     if reference.find('!') == -1:
         refer = reference
+    elif reference.find(':') == -1:
+        refer = AddressCell.create(reference)
     else:
-        if reference.find(':') == -1:
-            refer = AddressCell.create(reference)
-        else:
-            refer = AddressRange.create(reference)
+        refer = AddressRange.create(reference)
 
     result = 'not implemented'
     try:

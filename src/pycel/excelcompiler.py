@@ -138,12 +138,11 @@ class ExcelCompiler:
     def _compute_file_md5_digest(filename):
         if not os.path.exists(filename):
             return None
-        else:
-            hash_md5 = hashlib.md5()
-            with open(filename, "rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
-                    hash_md5.update(chunk)
-            return hash_md5.hexdigest()
+        hash_md5 = hashlib.md5()
+        with open(filename, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
 
     @property
     def _compute_excel_file_md5_digest(self):
@@ -187,7 +186,7 @@ class ExcelCompiler:
 
         def cell_value(a_cell):
             if a_cell.formula and a_cell.formula.python_code:
-                return '=' + a_cell.formula.python_code
+                return f'={a_cell.formula.python_code}'
             elif isinstance(a_cell.value, np.float64):
                 return float(a_cell.value)
             else:
@@ -301,25 +300,25 @@ class ExcelCompiler:
         """
 
         filename = filename or self.filename
-        extension = self._filename_has_extension(filename)
-        if extension:
+        if extension := self._filename_has_extension(filename):
             file_types = (extension, )
         elif isinstance(file_types, str):
             file_types = (file_types, )
 
-        unknown_types = tuple(ft for ft in file_types
-                              if ft not in self.save_file_extensions)
-        if unknown_types:
+        if unknown_types := tuple(
+            ft for ft in file_types if ft not in self.save_file_extensions
+        ):
             raise ValueError(f"Unknown file types: {' '.join(unknown_types)}")
 
         pickle_extension = next((ft for ft in file_types
                                  if ft.startswith('p')), None)
         non_pickle_extension = next((ft for ft in file_types
                                      if not ft.startswith('p')), None)
-        extra_extensions = tuple(ft for ft in file_types if ft not in (
-            pickle_extension, non_pickle_extension))
-
-        if extra_extensions:
+        if extra_extensions := tuple(
+            ft
+            for ft in file_types
+            if ft not in (pickle_extension, non_pickle_extension)
+        ):
             raise ValueError(
                 'Only allowed one pickle extension and one text extension. '
                 f'Extras: {extra_extensions}')
@@ -335,7 +334,7 @@ class ExcelCompiler:
         # save pickle file if requested and has changed
         if pickle_extension:
             if not filename.endswith(pickle_extension):
-                filename += '.' + pickle_extension
+                filename += f'.{pickle_extension}'
 
             if text_changed or not os.path.exists(filename):
                 excel_compiler = self._from_text(text_name, is_json=is_json)
@@ -354,14 +353,19 @@ class ExcelCompiler:
         """
 
         extension = cls._filename_has_extension(filename) or next(
-            (ext for ext in cls.save_file_extensions
-             if os.path.exists(filename + '.' + ext)), None)
+            (
+                ext
+                for ext in cls.save_file_extensions
+                if os.path.exists(f'{filename}.{ext}')
+            ),
+            None,
+        )
 
         if not extension:
             raise ValueError(f"Unrecognized file type or compiled file not found: '{filename}'")
 
         if not filename.endswith(extension):
-            filename += '.' + extension
+            filename += f'.{extension}'
 
         if extension[0] == 'p':
             with open(filename, 'rb') as f:
@@ -388,12 +392,12 @@ class ExcelCompiler:
             raise ImportError("Package 'pydot' is not installed")
 
         from networkx.drawing.nx_pydot import write_dot
-        filename = filename or (self.filename + '.dot')
+        filename = filename or f'{self.filename}.dot'
         write_dot(self.dep_graph, filename)
 
     def export_to_gexf(self, filename=None):
         from networkx.readwrite.gexf import write_gexf
-        filename = filename or (self.filename + '.gexf')
+        filename = filename or f'{self.filename}.gexf'
         write_gexf(self.dep_graph, filename)
 
     def plot_graph(self, layout_type='spring_layout'):
@@ -577,7 +581,7 @@ class ExcelCompiler:
             return failed
 
         self.to_file(file_types='json')
-        compiled = ExcelCompiler.from_file(self.filename + '.json')
+        compiled = ExcelCompiler.from_file(f'{self.filename}.json')
         compiled.recalculate()
         for addr in self.cell_map:
             if not self.cell_map[addr].close_enough(
@@ -585,9 +589,9 @@ class ExcelCompiler:
                 failed[addr] = Mismatch(
                     self.cell_map[addr].value, compiled.cell_map[addr].value,
                     str(self.cell_map[addr].formula))
-                print('{} mismatch  {} -> {}  {}'.format(
-                    addr, self.cell_map[addr].value, self.cell_map[addr].value,
-                    str(self.cell_map[addr].formula)))
+                print(
+                    f'{addr} mismatch  {self.cell_map[addr].value} -> {self.cell_map[addr].value}  {str(self.cell_map[addr].formula)}'
+                )
         return failed
 
     def validate_calcs(self, output_addrs=None, sheet=None, verify_tree=True,
@@ -636,9 +640,9 @@ class ExcelCompiler:
                         failed.setdefault('mismatch', {})[str(addr)] = Mismatch(
                             original_value, cell.value,
                             cell.formula.base_formula)
-                        print('{} mismatch  {} -> {}  {}'.format(
-                            addr, original_value, cell.value,
-                            cell.formula.base_formula))
+                        print(
+                            f'{addr} mismatch  {original_value} -> {cell.value}  {cell.formula.base_formula}'
+                        )
 
                         # do it again to allow easy break-pointing
                         cell.value = None
@@ -655,14 +659,14 @@ class ExcelCompiler:
                 cell = self.cell_map.get(addr.address, None)
                 formula = cell and cell.formula.base_formula
                 exc_str = str(exc)
-                exc_str_split = exc_str.split('\n')
-
                 if 'is not implemented' in exc_str:
                     exc_str_key = exc_str.split('is not implemented')[0]
                     exc_str_key = exc_str_key.strip().rsplit(' ', 1)[1].upper()
                     not_implemented = True
 
                 else:
+                    exc_str_split = exc_str.split('\n')
+
                     if len(exc_str_split) == 1:
                         exc_str_key = f'{type(exc).__name__}: {exc_str}'
                     else:
@@ -1056,7 +1060,7 @@ class _CellRange(_CellBase):
         if data.formula and isinstance(data.formula, str):
             formula = data.formula
             if formula.startswith('={') and formula[-1] == '}':
-                formula = '=' + formula[2:-1]
+                formula = f'={formula[2:-1]}'
 
         super().__init__(address=data.address, formula=formula, excel=excel)
         if not self.address.sheet:
@@ -1159,10 +1163,7 @@ class _CycleCell(_Cell):
 
     @property
     def value(self):
-        if self.wip:
-            return self._prev_value
-        else:
-            return self._value
+        return self._prev_value if self.wip else self._value
 
     @value.setter
     def value(self, a_value):
@@ -1195,7 +1196,7 @@ class _CompiledImporter:
     def get_range(self, address):
         cell = self._get_cell(address)
 
-        if not address.is_range:
+        if not address.is_range or not address.is_unbounded_range and cell.formula:
             return cell
 
         elif address.is_unbounded_range:
@@ -1205,9 +1206,6 @@ class _CompiledImporter:
             assert formula.endswith(REF_END)
             ref_addr = formula[len(REF_START):-len(REF_END)]
             return self.get_range(AddressRange(ref_addr))
-
-        elif cell.formula:
-            return cell
 
         else:
             # need to map col or row ranges to a specific range

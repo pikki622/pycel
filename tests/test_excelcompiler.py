@@ -90,9 +90,9 @@ def test_round_trip_through_json_yaml_and_pickle(excel_compiler, fixture_xls_pat
 def test_filename_ext(excel_compiler, fixture_xls_path):
     excel_compiler.evaluate('Sheet1!D1')
     excel_compiler.extra_data = {1: 3}
-    pickle_name = excel_compiler.filename + '.pkl'
-    yaml_name = excel_compiler.filename + '.yml'
-    json_name = excel_compiler.filename + '.json'
+    pickle_name = f'{excel_compiler.filename}.pkl'
+    yaml_name = f'{excel_compiler.filename}.yml'
+    json_name = f'{excel_compiler.filename}.json'
 
     for name in (pickle_name, yaml_name, json_name):
         try:
@@ -138,7 +138,7 @@ def test_deserialize_filename(
 
 def test_filename_extension_errors(excel_compiler, fixture_xls_path):
     with pytest.raises(ValueError, match='Unrecognized file type'):
-        ExcelCompiler.from_file(excel_compiler.filename + '.xyzzy')
+        ExcelCompiler.from_file(f'{excel_compiler.filename}.xyzzy')
 
     with pytest.raises(ValueError, match='Only allowed one '):
         excel_compiler.to_file(file_types=('pkl', 'pickle'))
@@ -165,8 +165,8 @@ def test_pickle_file_rebuilding(excel_compiler):
     excel_compiler.trim_graph(input_addrs, output_addrs)
     excel_compiler.to_file()
 
-    pickle_name = excel_compiler.filename + '.pkl'
-    yaml_name = excel_compiler.filename + '.yml'
+    pickle_name = f'{excel_compiler.filename}.pkl'
+    yaml_name = f'{excel_compiler.filename}.yml'
 
     assert os.path.exists(pickle_name)
     old_hash = excel_compiler._compute_file_md5_digest(pickle_name)
@@ -214,8 +214,7 @@ def test_recalculate(excel_compiler):
 
 
 def test_evaluate_from_generator(excel_compiler):
-    result = excel_compiler.evaluate(
-        a for a in ('trim-range!B1', 'trim-range!B2'))
+    result = excel_compiler.evaluate(iter(('trim-range!B1', 'trim-range!B2')))
     assert (24, 136) == result
 
 
@@ -504,7 +503,7 @@ def test_evaluate_conditional_formatting(cond_format_ws):
         AddressRange('Sheet1!B4:B6'),
     ]
     formats = cond_format_ws.eval_conditional_formats(cells_addrs)
-    formats2 = cond_format_ws.eval_conditional_formats((a for a in cells_addrs))
+    formats2 = cond_format_ws.eval_conditional_formats(iter(cells_addrs))
     assert formats == list(formats2)  # should match cells_addrs's type
     assert formats2 == tuple(formats2)  # tuple since cells_addrs is a generator
     assert isinstance(formats[0], tuple)
@@ -513,16 +512,14 @@ def test_evaluate_conditional_formatting(cond_format_ws):
 
     # read the spreadsheet from yaml
     cond_format_ws.to_file(file_types=('yml', ))
-    cond_format_ws_yaml = ExcelCompiler.from_file(
-        cond_format_ws.filename + '.yml')
+    cond_format_ws_yaml = ExcelCompiler.from_file(f'{cond_format_ws.filename}.yml')
     cells_addrs[0] = AddressCell('Sheet1!B2')
     formats3 = cond_format_ws_yaml.eval_conditional_formats(tuple(cells_addrs))
     assert formats2 == formats3
 
     # read the spreadsheet from pickle
     cond_format_ws.to_file(file_types=('pkl', ))
-    cond_format_ws_pkl = ExcelCompiler.from_file(
-        cond_format_ws.filename + '.pkl')
+    cond_format_ws_pkl = ExcelCompiler.from_file(f'{cond_format_ws.filename}.pkl')
     cells_addrs[0] = AddressCell('Sheet1!B2')
     formats4 = cond_format_ws_pkl.eval_conditional_formats(tuple(cells_addrs))
     assert formats2 == formats4
@@ -539,11 +536,12 @@ def test_evaluate_conditional_formatting(cond_format_ws):
         (None, 'FFFFC7CE'): 'nofont',
     }
 
-    color_map = {}
-    for idx, dxf in cond_format_ws.conditional_formats.items():
-        color_map[idx] = color_key[
-            dxf.font and dxf.font.color.value, dxf.fill.bgColor.value]
-
+    color_map = {
+        idx: color_key[
+            dxf.font and dxf.font.color.value, dxf.fill.bgColor.value
+        ]
+        for idx, dxf in cond_format_ws.conditional_formats.items()
+    }
     expected = [
         ['red'],
         ['grn', 'yel', 'red'],
@@ -594,7 +592,7 @@ def test_compile_error_message_line_number(excel_compiler):
 
     excel_compiler.trim_graph(input_addrs, output_addrs)
 
-    filename = excel_compiler.filename + '.pickle'
+    filename = f'{excel_compiler.filename}.pickle'
     excel_compiler.to_file(filename)
 
     excel_compiler = ExcelCompiler.from_file(filename)
@@ -1101,7 +1099,7 @@ def test_circular_order_random(fixture_xls_copy):
 
     randgen = random.Random(1234)
 
-    for i in range(100):
+    for _ in range(100):
         addrs = copy.copy(to_verify)
         randgen.shuffle(addrs)
         excel_compiler = ExcelCompiler(fixture_xls_copy('circular.xlsx'), cycles=True)

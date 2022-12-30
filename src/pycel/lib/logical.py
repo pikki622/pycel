@@ -56,21 +56,15 @@ def _clean_logicals(*args):
     if error is not None:
         # return the first error in the list
         return error
-    else:
-        values = tuple(x for x in values
-                       if not (x is None or isinstance(x, str)))
-        return VALUE_ERROR if len(values) == 0 else values
+    values = tuple(x for x in values if x is not None and not isinstance(x, str))
+    return values or VALUE_ERROR
 
 
 def and_(*args):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   and-function-5f19b2e8-e1df-4408-897a-ce285a19e9d9
     values = _clean_logicals(*args)
-    if isinstance(values, str):
-        # return error code
-        return values
-    else:
-        return all(values)
+    return values if isinstance(values, str) else all(values)
 
 
 # def false(value):
@@ -147,22 +141,14 @@ def not_(value):
     #   not-function-9cfc6011-a054-40c7-a140-cd4ba2d87d77
     cleaned = _clean_logical(value)
 
-    if isinstance(cleaned, str):
-        # return error code
-        return cleaned
-    else:
-        return not cleaned
+    return cleaned if isinstance(cleaned, str) else not cleaned
 
 
 def or_(*args):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   or-function-7d17ad14-8700-4281-b308-00b131e22af0
     values = _clean_logicals(*args)
-    if isinstance(values, str):
-        # return error code
-        return values
-    else:
-        return any(values)
+    return values if isinstance(values, str) else any(values)
 
 
 @excel_helper(cse_params=-1)
@@ -181,9 +167,7 @@ def switch(lookup_value, *args):
         if to_match == lookup_value:
             return result
 
-    if len(args) % 2:
-        return args[-1]
-    return NA_ERROR
+    return args[-1] if len(args) % 2 else NA_ERROR
 
 
 # def true(value):
@@ -196,11 +180,7 @@ def xor_(*args):
     # Excel reference: https://support.microsoft.com/en-us/office/
     #   xor-function-1548d4c2-5e47-4f77-9a92-0533bba14f37
     values = _clean_logicals(*args)
-    if isinstance(values, str):
-        # return error code
-        return values
-    else:
-        return sum(bool(v) for v in values) % 2
+    return values if isinstance(values, str) else sum(bool(v) for v in values) % 2
 
 
 # Older mappings for excel functions that match Python built-in and keywords
